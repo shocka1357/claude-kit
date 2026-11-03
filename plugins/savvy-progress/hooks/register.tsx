@@ -20,6 +20,10 @@ const STEP_TOOL = 'mcp__savvy-progress__step'
 const STEP_BRIEF = `
 
 Progress reporting: before any other work, call \`${STEP_TOOL}\` with \`total\` (your plan in 3-8 steps) and \`done: 0\`; call it again with \`done\` and a few-word \`note\` as each step finishes. It only draws a progress bar.`
+// Added to the end of a Codex wrapper's brief: the row shows Codex's model, not the wrapper's.
+const CODEX_BRIEF = `
+
+Progress reporting: before any other work, call \`${STEP_TOOL}\` with \`total\` (your plan in 3-8 steps), \`done: 0\`, and \`model\` and \`effort\` set to the Codex model and reasoning effort the job runs with (from Codex's header, its \`-m\` flag or ~/.codex/config.toml); call it again with \`done\` and a few-word \`note\` as each step finishes. It only draws a progress bar.`
 const PANE = 'savvy-agents'
 const PHASES: readonly Phase[] = ['plan', 'design', 'delegate', 'review', 'close']
 const TIERS: readonly string[] = ['fable', 'heavy', 'careful', 'medium', 'light']
@@ -75,7 +79,7 @@ const STRINGS = {
     review: 'Review',
     busy: 'running',
     ctx: 'ctx',
-    tier: { light: 'light', medium: 'medium', careful: 'careful', heavy: 'heavy', fable: 'fable', other: 'other' },
+    tier: { light: 'light', medium: 'medium', careful: 'careful', heavy: 'heavy', fable: 'fable', codex: 'Codex', other: 'other' },
     effort: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
   },
   ru: {
@@ -106,7 +110,7 @@ const STRINGS = {
     review: 'Ревью',
     busy: 'в работе',
     ctx: 'ctx',
-    tier: { light: 'light', medium: 'medium', careful: 'careful', heavy: 'heavy', fable: 'fable', other: 'other' },
+    tier: { light: 'light', medium: 'medium', careful: 'careful', heavy: 'heavy', fable: 'fable', codex: 'Codex', other: 'other' },
     effort: { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
   },
   he: {
@@ -137,7 +141,7 @@ const STRINGS = {
     review: 'בדיקה',
     busy: 'בעבודה',
     ctx: 'הקשר',
-    tier: { light: 'קל', medium: 'בינוני', careful: 'זהיר', heavy: 'כבד', fable: 'פייבל', other: 'אחר' },
+    tier: { light: 'קל', medium: 'בינוני', careful: 'זהיר', heavy: 'כבד', fable: 'פייבל', codex: 'Codex', other: 'אחר' },
     effort: { low: 'נמוך', medium: 'בינוני', high: 'גבוה', xhigh: 'גבוה מאוד', max: 'מקסימלי' },
   },
 } as const
@@ -356,6 +360,7 @@ const barText = (f: Flow, width: number): string => {
 // Agents panel: every subagent of the session, plus the tasks the flow planned.
 
 const TIER_COLOR: Record<string, string> = {
+  codex: '#10A37F',
   fable: '#7F77DD',
   heavy: '#D85A30',
   careful: '#BA7517',
@@ -382,7 +387,11 @@ const tierModel = (tier: string): string => {
 }
 
 // "Opus 5.5 · low" for a run, or just the model when no effort was seen.
-const runModel = (a: AgentRun): string => (a.effort ? `${modelName(a.model)} · ${effortWord(a.effort)}` : modelName(a.model))
+const runModel = (a: AgentRun): string => {
+  const model = a.reportedModel ?? modelName(a.model)
+  const effort = a.reportedModel ? a.reportedEffort : a.effort
+  return effort ? `${model} · ${effortWord(effort)}` : model
+}
 
 // USD per million tokens: input, output, cache read, cache write. The first row that
 // matches a model id wins, so a release sits above its family.
@@ -439,7 +448,11 @@ const costOf = (model: string, u: Usage, isRequest: boolean): number => {
 const windowOf = (model: string): number => (/haiku-4|claude-3/i.test(model) ? 200_000 : 1_000_000)
 
 // `savvy-careful`, or `savvy-flow:savvy-careful` when the agents ship in a plugin.
+// A Codex wrapper (`codex`, or a plugin's `codex:codex-rescue`) is its own tier.
+const isCodex = (type: string): boolean => /codex/i.test(type)
+
 const tierOf = (type: string): string => {
+  if (isCodex(type)) return 'codex'
   const bare = type.replace(/^[^:]*:/, '')
   const t = bare.replace(/^savvy-/, '').toLowerCase()
   return Object.hasOwn(TIER_COLOR, t) && bare.startsWith('savvy-') ? t : 'other'
@@ -560,6 +573,8 @@ const CRAB_CSS = `<style>
 @keyframes wave{50%{transform:skewY(-12deg) scaleX(.85)}}
 .c-explore.run .it{transform-origin:50% 100%;animation:fence .5s ease-in-out infinite}
 @keyframes fence{50%{transform:rotate(25deg)}}
+.c-codex.run .tap{animation:st .25s steps(1) infinite}
+.c-codex.run .cur{animation:blink .5s steps(1) infinite}
 @media (prefers-reduced-motion: reduce){.run,.run g{animation:none!important}}
 </style>`
 
@@ -606,6 +621,14 @@ const COSTUMES: Record<string, (f: Fill, t: string) => void> = {
     stamp(f, 5, 3, ['.kk..............kk.', '.kkk....kkkk....kkk.', '..kkkkkkkwwkkkkkkk..', '..kkkkkkkkkkkkkkkk..', '.gggggggggggggggggg.'], { k: '#55514C', w: '#F8F6F1', g: '#F5C542' })
     f(7, 11, 11, 1, INK); f(18, 11, 4, 3, INK)
     f(27, 6, 1, 9, '#C9CCD2', 'it'); f(26, 15, 3, 1, '#7A4A26', 'it')
+  },
+  // Codex: beanie with the accent stripe; taps a terminal whose cursor blinks.
+  codex: (f, t) => {
+    crabBody(f, -4, 'tap')
+    f(14, 3, 2, 1, '#F8F6F1')
+    stamp(f, 6, 4, ['......kkkkkk......', '....kkkkkkkkkk....', '..kkkkkkkkkkkkkk..', '.gggggggggggggggg.', '.dddddddddddddddd.', '.dddddddddddddddd.'], { k: '#2B2B2E', g: t, d: '#1A1A1C' })
+    stamp(f, 21, 1, ['kkkkkkkkk', 'ksssssssk', 'ksgsssssk', 'kssgssssk', 'ksgsssssk', 'ksssssssk', 'kkkkkkkkk'], { k: '#3A3A3C', s: '#0D0D0F', g: t })
+    f(25, 5, 2, 1, '#F8F6F1', 'cur')
   },
   other: f => crabBody(f),
 }
@@ -829,7 +852,7 @@ export const register: Register = (on, options) => {
     await $.tool.register({
       name: 'step',
       description:
-        'For savvy-flow workers: report progress on your own task to the agents panel. ' +
+        'For subagents (savvy-flow workers, Codex wrappers): report progress on your own task to the agents panel. ' +
         'Right after reading the brief, call it with `total` (your plan in 3-8 steps) and `done: 0`; ' +
         'call it again as each step finishes. Cheap and silent: it only draws a bar.',
       inputSchema: {
@@ -838,6 +861,8 @@ export const register: Register = (on, options) => {
           done: { type: 'integer', minimum: 0, description: 'Steps finished so far.' },
           total: { type: 'integer', minimum: 1, description: 'Steps planned; may change if the plan changes.' },
           note: { type: 'string', description: 'The step in progress, a few words.' },
+          model: { type: 'string', description: 'Only when the work runs on another model than yours, as Codex does: its name, e.g. gpt-5.5-codex.' },
+          effort: { type: 'string', description: 'The reasoning effort of that model, e.g. high.' },
         },
         required: ['done'],
       },
@@ -890,7 +915,7 @@ export const register: Register = (on, options) => {
 
   // A worker's own progress: the call runs in the worker's loop, so agentId names it.
   on('tool.call', { tool: STEP_TOOL }, async ($, e) => {
-    const input = e as unknown as { done?: number; total?: number; note?: string }
+    const input = e as unknown as { done?: number; total?: number; note?: string; model?: string; effort?: string }
     const agentId = e.agentId
     if (!agentId) return { result: 'ignored: only subagents report steps' }
     let matched = false
@@ -900,7 +925,15 @@ export const register: Register = (on, options) => {
         matched = true
         const total = Math.max(0, Math.round(input.total ?? a.stepTotal ?? 0))
         const done = Math.max(0, Math.round(input.done ?? a.stepDone ?? 0))
-        return { ...a, stepTotal: total, stepDone: total ? Math.min(total, done) : done, stepNote: input.note?.trim() || undefined }
+        const model = typeof input.model === 'string' ? clip(input.model.trim(), 40) : ''
+        const effort = typeof input.effort === 'string' ? clip(input.effort.trim(), 12) : ''
+        return {
+          ...a,
+          stepTotal: total,
+          stepDone: total ? Math.min(total, done) : done,
+          stepNote: input.note?.trim() || undefined,
+          ...(model ? { reportedModel: model, reportedEffort: effort || undefined } : {}),
+        }
       }),
     )
     return { result: matched ? 'ok' : `ignored: no panel row for agent ${agentId}` }
@@ -923,8 +956,9 @@ export const register: Register = (on, options) => {
   })
 
   on('agent.spawn', async ($, e, next) => {
-    const isUnbriefed = e.subagentType.startsWith('savvy-') && !e.prompt.includes(STEP_TOOL)
-    const started = await next(isUnbriefed ? { ...e, prompt: e.prompt + STEP_BRIEF } : e)
+    const brief = isCodex(e.subagentType) ? CODEX_BRIEF : e.subagentType.startsWith('savvy-') ? STEP_BRIEF : ''
+    const isUnbriefed = brief && !e.prompt.includes(STEP_TOOL)
+    const started = await next(isUnbriefed ? { ...e, prompt: e.prompt + brief } : e)
     if (started.deny !== undefined) return started
 
     const at = await $.clock.now()

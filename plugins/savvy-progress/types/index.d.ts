@@ -38,6 +38,9 @@ export type AgentRun = {
   stepDone?: number
   stepTotal?: number
   stepNote?: string
+  /** Reported through `step` by a worker that runs another model, as a Codex wrapper does. */
+  reportedModel?: string
+  reportedEffort?: string
 }
 
 export type Panel = {
