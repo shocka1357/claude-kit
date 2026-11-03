@@ -360,7 +360,7 @@ const barText = (f: Flow, width: number): string => {
 // Agents panel: every subagent of the session, plus the tasks the flow planned.
 
 const TIER_COLOR: Record<string, string> = {
-  codex: '#10A37F',
+  codex: '#5B7CFA',
   fable: '#7F77DD',
   heavy: '#D85A30',
   careful: '#BA7517',
@@ -573,7 +573,6 @@ const CRAB_CSS = `<style>
 @keyframes wave{50%{transform:skewY(-12deg) scaleX(.85)}}
 .c-explore.run .it{transform-origin:50% 100%;animation:fence .5s ease-in-out infinite}
 @keyframes fence{50%{transform:rotate(25deg)}}
-.c-codex.run .tap{animation:st .25s steps(1) infinite}
 .c-codex.run .cur{animation:blink .5s steps(1) infinite}
 @media (prefers-reduced-motion: reduce){.run,.run g{animation:none!important}}
 </style>`
@@ -622,13 +621,48 @@ const COSTUMES: Record<string, (f: Fill, t: string) => void> = {
     f(7, 11, 11, 1, INK); f(18, 11, 4, 3, INK)
     f(27, 6, 1, 9, '#C9CCD2', 'it'); f(26, 15, 3, 1, '#7A4A26', 'it')
   },
-  // Codex: beanie with the accent stripe; taps a terminal whose cursor blinks.
-  codex: (f, t) => {
-    crabBody(f, -4, 'tap')
-    f(14, 3, 2, 1, '#F8F6F1')
-    stamp(f, 6, 4, ['......kkkkkk......', '....kkkkkkkkkk....', '..kkkkkkkkkkkkkk..', '.gggggggggggggggg.', '.dddddddddddddddd.', '.dddddddddddddddd.'], { k: '#2B2B2E', g: t, d: '#1A1A1C' })
-    stamp(f, 21, 1, ['kkkkkkkkk', 'ksssssssk', 'ksgsssssk', 'kssgssssk', 'ksgsssssk', 'ksssssssk', 'kkkkkkkkk'], { k: '#3A3A3C', s: '#0D0D0F', g: t })
-    f(25, 5, 2, 1, '#F8F6F1', 'cur')
+  // Codex: the cloud-headed bot; a screen face with a prompt whose cursor blinks, a prompt on the chest.
+  codex: f => {
+    const c = { b: '#6B8CFF', d: '#4A66E0', l: '#A9BEFF' }
+    stamp(f, 6, 1, [
+      '....bbb....bbb....',
+      '..lbbbbbbbbbbbbd..',
+      '.lbbbbbbbbbbbbbbd.',
+      'lbbbbbbbbbbbbbbbbd',
+      'bbbbbbbbbbbbbbbbbd',
+      '.bbbbbbbbbbbbbbbd.',
+      'bbbbbbbbbbbbbbbbbd',
+      'bbbbbbbbbbbbbbbbbd',
+      '.bbbbbbbbbbbbbbbd.',
+      'bbbbbbbbbbbbbbbbbd',
+      'bbbbbbbbbbbbbbbbdd',
+      '.bbbbbbbbbbbbbbdd.',
+      '..ddbbbbbbbbbddd..',
+      '....ddd....ddd....',
+    ], c)
+    stamp(f, 9, 4, [
+      '.ssssssssss.',
+      'ssssssssssss',
+      'ssggssssssss',
+      'sssggsssssss',
+      'ssggssssssss',
+      'ssssssssssss',
+      'ssssssssssss',
+      '.ssssssssss.',
+    ], { s: '#1B2350', g: '#A9C8FF' })
+    f(15, 8, 3, 1, '#A9C8FF', 'cur')
+    stamp(f, 10, 15, [
+      '.bbbbbbbb.',
+      'lbbbbbbbbd',
+      'lblbbbbbbd',
+      'lbblbllbbd',
+      'lblbbbbbbd',
+      '.dddddddd.',
+    ], c)
+    f(7, 16, 3, 3, c.b); f(7, 18, 3, 1, c.d)
+    f(20, 16, 3, 3, c.b); f(20, 18, 3, 1, c.d)
+    f(11, 21, 3, 4, c.d, 'la')
+    f(16, 21, 3, 4, c.d, 'lb')
   },
   other: f => crabBody(f),
 }
